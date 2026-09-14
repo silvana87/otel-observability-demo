@@ -1,0 +1,56 @@
+services:
+
+  # --- Backend de observabilidad (esto sería el Grafana Cloud del equipo) ---
+  tempo:
+    image: grafana/tempo:2.5.0
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "3200:3200"   # API de consulta de Tempo
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    ports:
+      - "3000:3000"   # UI de Grafana -> http://localhost:3000
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - tempo
+
+  # --- OTel Collector: el "enchufe universal" de la telemetría ---
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.107.0
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317"   # OTLP gRPC (el que usan CF1 y CF2)
+      - "4318:4318"   # OTLP HTTP
+    depends_on:
+      - tempo
+
+  # --- Nuestro pipeline real, instrumentado con OpenTelemetry ---
+  cf1:
+    build: ./cf1
+    ports:
+      - "8081:8081"
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - CF2_URL=http://cf2:8082/process
+    depends_on:
+      - otel-collector
+      - cf2
+
+  cf2:
+    build: ./cf2
+    ports:
+      - "8082:8082"
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    depends_on:
+      - otel-collector

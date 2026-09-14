@@ -1,0 +1,118 @@
+# Plantilla de referencia — NO se usa directamente en docker-compose.
+#
+# Muestra cómo se vería el bloque "exporters" del OTel Collector para varios
+# backends adicionales, self-hosted y SaaS. La idea: copia el bloque que te
+# sirva a tu otel-collector-config.yaml, rellena las credenciales (nunca las
+# subas al repo — usa variables de entorno o un secret manager) y listo.
+#
+# En TODOS los casos, los receivers (cómo llega la telemetría desde tus
+# servicios) se mantienen exactamente iguales — solo cambia a dónde se
+# reenvía. Ese es el punto central de usar OpenTelemetry: instrumentas una
+# vez, cambias de destino sin tocar el código de la aplicación.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 1s
+
+exporters:
+
+  # ---------------------------------------------------------------------
+  # Grafana Cloud (managed) — en vez de tu propio Tempo self-hosted.
+  # El endpoint y las credenciales los obtienes en Grafana Cloud >
+  # tu stack > "Send traces" (te genera este bloque casi copiado y pegado).
+  # ---------------------------------------------------------------------
+  otlphttp/grafana_cloud:
+    endpoint: https://tempo-<region>.grafana.net/tempo
+    auth:
+      authenticator: basicauth/grafana_cloud
+
+  # ---------------------------------------------------------------------
+  # Honeycomb — plataforma de observability enfocada en trazas de alta
+  # cardinalidad. Requiere una API key (Team Settings > API Keys).
+  # ---------------------------------------------------------------------
+  otlp/honeycomb:
+    endpoint: api.honeycomb.io:443
+    headers:
+      x-honeycomb-team: "${HONEYCOMB_API_KEY}"
+
+  # ---------------------------------------------------------------------
+  # New Relic — requiere una Ingest License Key.
+  # El endpoint cambia según tu región de cuenta (US vs EU).
+  # ---------------------------------------------------------------------
+  otlp/newrelic:
+    endpoint: otlp.nr-data.net:4317     # UE: otlp.eu01.nr-data.net:4317
+    headers:
+      api-key: "${NEW_RELIC_LICENSE_KEY}"
+
+  # ---------------------------------------------------------------------
+  # Datadog — usa un exporter dedicado (no OTLP genérico), del paquete
+  # opentelemetry-collector-contrib. Requiere tu Datadog API key.
+  # ---------------------------------------------------------------------
+  datadog:
+    api:
+      key: "${DATADOG_API_KEY}"
+      site: datadoghq.com        # o datadoghq.eu, us3.datadoghq.com, etc.
+
+  # ---------------------------------------------------------------------
+  # Google Cloud Trace — exporta directo a Cloud Trace de tu proyecto GCP.
+  # Requiere credenciales de una cuenta de servicio con rol
+  # roles/cloudtrace.agent (vía Application Default Credentials).
+  # ---------------------------------------------------------------------
+  googlecloud:
+    project: "${GCP_PROJECT_ID}"
+
+  # ---------------------------------------------------------------------
+  # AWS X-Ray — requiere credenciales AWS válidas (IAM role o env vars)
+  # con permisos de xray:PutTraceSegments.
+  # ---------------------------------------------------------------------
+  awsxray:
+    region: "us-east-1"
+
+  # ---------------------------------------------------------------------
+  # Zipkin — otro backend open source clásico, alternativa liviana a Jaeger.
+  # ---------------------------------------------------------------------
+  zipkin:
+    endpoint: "http://zipkin:9411/api/v2/spans"
+
+  # ---------------------------------------------------------------------
+  # SigNoz — backend open source todo-en-uno (trazas+métricas+logs),
+  # pensado como alternativa self-hosted a Grafana Cloud.
+  # ---------------------------------------------------------------------
+  otlp/signoz:
+    endpoint: signoz-otel-collector:4317
+    tls:
+      insecure: true
+
+  # ---------------------------------------------------------------------
+  # Debug: imprime lo que llega en los logs del propio Collector.
+  # Útil para confirmar que la telemetría está llegando antes de
+  # preocuparte por si el backend la está guardando bien.
+  # ---------------------------------------------------------------------
+  debug:
+    verbosity: basic
+
+extensions:
+  basicauth/grafana_cloud:
+    client_auth:
+      username: "${GRAFANA_CLOUD_INSTANCE_ID}"
+      password: "${GRAFANA_CLOUD_API_KEY}"
+
+service:
+  extensions: [basicauth/grafana_cloud]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      # DOBLE EMISIÓN: puedes exportar al mismo tiempo a varios backends
+      # con solo listarlos aquí. Útil, por ejemplo, para tener Tempo
+      # self-hosted como fuente de verdad Y Grafana Cloud como respaldo,
+      # o para migrar de un vendor a otro sin cortar el flujo.
+      exporters: [otlphttp/grafana_cloud, debug]

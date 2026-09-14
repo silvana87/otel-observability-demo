@@ -1,0 +1,48 @@
+# Stack alternativo: el mismo pipeline (cf1 -> cf2), pero exportando a
+# Jaeger en vez de Tempo/Grafana. Úsalo para comprobar en la práctica que
+# cambiar de backend no requiere tocar cf1/cf2 ni su código de instrumentación
+# — solo la configuración del Collector.
+#
+# Levantar:  docker compose -f docker-compose.jaeger.yml up --build
+# UI:        http://localhost:16686
+
+services:
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.60
+    ports:
+      - "16686:16686"  # UI de Jaeger
+      - "4319:4317"    # OTLP gRPC nativo de Jaeger (expuesto por si quieres apuntar directo)
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.107.0
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./configs/otel-collector-jaeger.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    depends_on:
+      - jaeger
+
+  cf1:
+    build: ./cf1
+    ports:
+      - "8081:8081"
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - CF2_URL=http://cf2:8082/process
+    depends_on:
+      - otel-collector
+      - cf2
+
+  cf2:
+    build: ./cf2
+    ports:
+      - "8082:8082"
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    depends_on:
+      - otel-collector

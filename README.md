@@ -72,23 +72,7 @@ Guía completa, con solución de problemas comunes, en
 ## Material de capacitación (wiki)
 
 La carpeta [`wiki/`](wiki/) contiene todo el contenido teórico, en el mismo
-formato que usa la Wiki nativa de GitHub. Puedes leerlo directo como
-markdown en el repo, o publicarlo como Wiki de GitHub:
-
-1. En la página del repo en GitHub, ve a la pestaña **Wiki** y crea la
-   primera página (cualquier contenido, luego se reemplaza).
-2. Clona el repo de la wiki (es un repositorio Git aparte):
-   ```bash
-   git clone https://github.com/<tu-usuario>/<tu-repo>.wiki.git
-   ```
-3. Copia el contenido de `wiki/` a ese repo clonado, y haz commit + push:
-   ```bash
-   cp wiki/*.md <tu-repo>.wiki/
-   cd <tu-repo>.wiki
-   git add . && git commit -m "Importar material de capacitación" && git push
-   ```
-4. Los enlaces internos (`[[nombre de página]]`) ya están en el formato
-   que GitHub Wiki reconoce automáticamente.
+formato que usa la Wiki nativa de GitHub.
 
 Índice de contenido:
 

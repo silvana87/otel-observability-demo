@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Docker
+*.log
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Entornos
+.env
+.env.local
+
+# Datos locales de Tempo/Grafana si se montan volúmenes
+tempo-data/
+grafana-data/

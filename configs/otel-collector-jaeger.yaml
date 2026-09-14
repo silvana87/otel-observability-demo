@@ -1,0 +1,33 @@
+# Variante del otel-collector-config.yaml que exporta a Jaeger en vez de Tempo.
+#
+# Fíjate que lo ÚNICO que cambia respecto a otel-collector-config.yaml es el
+# bloque "exporters" y el pipeline. Los receivers (cómo llega la telemetría
+# desde cf1/cf2) son IDÉNTICOS — ese es el punto central de esta demo: el
+# código de las apps nunca se entera de a qué backend termina yendo.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 1s
+
+exporters:
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+  debug:
+    verbosity: basic
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/jaeger, debug]
